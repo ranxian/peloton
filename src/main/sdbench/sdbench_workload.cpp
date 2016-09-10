@@ -397,15 +397,16 @@ void RunSimpleQuery() {
 }
 
 void RunModerateQuery() {
+  LOG_INFO("Moderate Query");
 
   std::vector<oid_t> tuple_key_attrs;
   std::vector<oid_t> index_key_attrs;
 
-  UNUSED_ATTRIBUTE auto rand_sample = rand() % 10;
-  //if(rand_sample <= 3) {
+  auto rand_sample = rand() % 10;
+
+  if(rand_sample <= 3) {
     tuple_key_attrs = {3, 4};
     index_key_attrs = {0, 1};
-    /*
   }
   else if(rand_sample <= 6){
     tuple_key_attrs = {3, 6};
@@ -415,7 +416,6 @@ void RunModerateQuery() {
     tuple_key_attrs = {2};
     index_key_attrs = {0};
   }
-  */
 
   RunQuery(tuple_key_attrs, index_key_attrs);
 }
@@ -699,7 +699,7 @@ void RunAdaptExperiment() {
   state.layout_mode = LAYOUT_TYPE_ROW;
   state.adapt_layout = true;
 
-  state.total_ops = 500;
+  state.total_ops = 400;
 
   peloton_layout_mode = state.layout_mode;
 

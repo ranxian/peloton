@@ -217,7 +217,7 @@ void ParseArguments(int argc, char *argv[], configuration &state) {
 
   state.experiment_type = EXPERIMENT_TYPE_INVALID;
 
-  state.column_count = 500;
+  state.column_count = 100;
   state.write_ratio = 0.0;
 
   state.adapt_layout = false;

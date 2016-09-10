@@ -80,6 +80,9 @@ int main(int argc, char **argv) {
   peloton::benchmark::sdbench::ParseArguments(
       argc, argv, peloton::benchmark::sdbench::state);
 
+  // seed generator
+  srand(23);
+
   peloton::benchmark::sdbench::RunBenchmark();
 
   peloton::benchmark::sdbench::sdbench_table.release();
