@@ -88,7 +88,7 @@ static int GetLowerBound() {
   int tuple_count = state.scale_factor * state.tuples_per_tilegroup;
   int predicate_offset = 0.1 * tuple_count;
 
-  LOG_TRACE("Tuple count : %d", tuple_count);
+  LOG_INFO("Tuple count : %d", tuple_count);
 
   int lower_bound = predicate_offset;
   return lower_bound;
@@ -135,8 +135,8 @@ expression::AbstractExpression *CreateScanPredicate(std::vector<oid_t> key_attrs
   const int tuple_start_offset = GetLowerBound();
   const int tuple_end_offset = GetUpperBound();
 
-  LOG_TRACE("Lower bound : %d", tuple_start_offset);
-  LOG_TRACE("Upper bound : %d", tuple_end_offset);
+  LOG_INFO("Lower bound : %d", tuple_start_offset);
+  LOG_INFO("Upper bound : %d", tuple_end_offset);
 
   expression::AbstractExpression *predicate = nullptr;
 
@@ -275,7 +275,7 @@ static void ExecuteTest(std::vector<executor::AbstractExecutor *> &executors,
     auto duration = timer.GetDuration();
     total_duration += duration;
 
-    //WriteOutput(duration);
+    WriteOutput(duration);
 
     // Construct sample
     brain::Sample index_sample(index_columns_accessed,
@@ -324,7 +324,7 @@ std::shared_ptr<index::Index> PickIndex(storage::DataTable* table,
 
     auto index = table->GetIndex(index_itr);
     UNUSED_ATTRIBUTE auto index_metadata = index->GetMetadata();
-    LOG_TRACE("Available Index :: %s", index_metadata->GetInfo().c_str());
+    LOG_INFO("Available Index :: %s", index_metadata->GetInfo().c_str());
 
     // Some attribute did not match
     if(index_attrs != query_attrs_set) {
@@ -390,7 +390,7 @@ void RunSimpleQuery() {
   for(auto tuple_key_attr : tuple_key_attrs){
     os << tuple_key_attr << " ";
   }
-  LOG_TRACE("%s", os.str().c_str());
+  LOG_INFO("%s", os.str().c_str());
 
   RunQuery(tuple_key_attrs, index_key_attrs);
 
@@ -419,7 +419,6 @@ void RunModerateQuery() {
 
   RunQuery(tuple_key_attrs, index_key_attrs);
 }
-
 
 void RunQuery(const std::vector<oid_t>& tuple_key_attrs,
               const std::vector<oid_t>& index_key_attrs) {
@@ -465,7 +464,7 @@ void RunQuery(const std::vector<oid_t>& tuple_key_attrs,
   // Pick index
   auto index = PickIndex(sdbench_table.get(), tuple_key_attrs);
 
-  if(index != nullptr) {
+  if (index != nullptr) {
     index_scan_desc = planner::IndexScanPlan::IndexScanDesc(index,
                                                             key_column_ids,
                                                             expr_types,
@@ -632,7 +631,7 @@ void RunInsertTest() {
   auto orig_tuple_count = state.scale_factor * state.tuples_per_tilegroup;
   auto bulk_insert_count = state.write_ratio * orig_tuple_count;
 
-  LOG_TRACE("Bulk insert count : %lf", bulk_insert_count);
+  LOG_INFO("Bulk insert count : %lf", bulk_insert_count);
   planner::InsertPlan insert_node(sdbench_table.get(),
                                   std::move(project_info),
                                   bulk_insert_count);
@@ -661,16 +660,25 @@ void RunInsertTest() {
 }
 
 static void RunAdaptTest() {
-  UNUSED_ATTRIBUTE double insert_write_ratio = 0.01;
+  double write_ratio = state.write_ratio;
   double repeat_count = state.total_ops / state.phase_length;
 
   total_duration = 0;
 
+  double rand_sample = (double)rand() / RAND_MAX;
+
+  state.operator_type = OPERATOR_TYPE_DIRECT;
+
   for(oid_t repeat_itr = 0; repeat_itr < repeat_count; repeat_itr++) {
-
-    state.operator_type = OPERATOR_TYPE_DIRECT;
-    RunModerateQuery();
-
+    if (rand_sample < write_ratio) {
+      // Do insert
+      LOG_INFO("Do insert");
+      RunInsertTest();
+    } else {
+      // Do read
+      LOG_INFO("Do read");
+      RunModerateQuery();
+    }
   }
 
   LOG_INFO("Total Duration : %.2lf", total_duration);
