@@ -660,16 +660,25 @@ void RunInsertTest() {
 }
 
 static void RunAdaptTest() {
-  UNUSED_ATTRIBUTE double insert_write_ratio = 0.01;
+  double write_ratio = state.write_ratio;
   double repeat_count = state.total_ops / state.phase_length;
 
   total_duration = 0;
 
+  double rand_sample = (double)rand() / RAND_MAX;
+
+  state.operator_type = OPERATOR_TYPE_DIRECT;
+
   for(oid_t repeat_itr = 0; repeat_itr < repeat_count; repeat_itr++) {
-
-    state.operator_type = OPERATOR_TYPE_DIRECT;
-    RunModerateQuery();
-
+    if (rand_sample < write_ratio) {
+      // Do insert
+      LOG_INFO("Do insert");
+      RunInsertTest();
+    } else {
+      // Do read
+      LOG_INFO("Do read");
+      RunModerateQuery();
+    }
   }
 
   LOG_INFO("Total Duration : %.2lf", total_duration);
