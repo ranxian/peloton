@@ -92,7 +92,7 @@ static void AddIndex(storage::DataTable* table,
   // Add index
   table->AddIndex(adhoc_index);
 
-  LOG_TRACE("Added suggested index : %s", index_metadata->GetInfo().c_str());
+  LOG_INFO("Added suggested index : %s", index_metadata->GetInfo().c_str());
 
 }
 
@@ -193,7 +193,7 @@ double IndexTuner::ComputeWorkloadWriteRatio(const std::vector<brain::Sample>& s
     average_write_ratio = write_ratio * alpha +  (1 - alpha) * average_write_ratio;
   }
 
-  LOG_TRACE("Average write Ratio : %.2lf", average_write_ratio);
+  LOG_INFO("Average write Ratio : %.2lf", average_write_ratio);
 
   // TODO: Use average write ratio to throttle index creation
   return average_write_ratio;
@@ -227,7 +227,7 @@ GetFrequentSamples(const std::vector<brain::Sample>& samples){
     }
   }
 
-  LOG_TRACE("Sample frequency map size : %lu", sample_frequency_map.size());
+  LOG_INFO("Sample frequency map size : %lu", sample_frequency_map.size());
 
   // Normalize
   std::unordered_map<brain::Sample, double>::iterator sample_frequency_map_itr;
@@ -269,7 +269,7 @@ GetSuggestedIndices(const std::vector<sample_frequency_map_entry>& list){
       entry_itr++){
     auto& entry = list[entry_itr];
     auto& sample = entry.first;
-    LOG_TRACE("%s Utility : %.2lf", sample.GetInfo().c_str(), entry.second);
+    LOG_INFO("%s Utility : %.2lf", sample.GetInfo().c_str(), entry.second);
 
     suggested_indices.push_back(sample.columns_accessed_);
   }
@@ -288,14 +288,14 @@ size_t IndexTuner::CheckIndexStorageFootprint(storage::DataTable *table){
   size_t per_index_storage_space = tuple_count * 80 / 1024;
   size_t current_storage_space = index_count * per_index_storage_space;
 
-  LOG_TRACE("Per index storage space : %lu", per_index_storage_space);
-  LOG_TRACE("Current storage space : %lu", current_storage_space);
+  LOG_INFO("Per index storage space : %lu", per_index_storage_space);
+  LOG_INFO("Current storage space : %lu", current_storage_space);
 
   int available_storage_space = max_storage_space - current_storage_space;
   int max_allowed_indexes = available_storage_space / per_index_storage_space;
 
-  LOG_TRACE("Available storage space : %d", available_storage_space);
-  LOG_TRACE("Available index count : %d", max_allowed_indexes);
+  LOG_INFO("Available storage space : %d", available_storage_space);
+  LOG_INFO("Available index count : %d", max_allowed_indexes);
 
   return max_allowed_indexes;
 }
@@ -314,7 +314,7 @@ double GetCurrentIndexUtility(std::set<oid_t> suggested_index_set,
     std::set<oid_t> columns_set(columns.begin(), columns.end());
 
     if(columns_set == suggested_index_set){
-      LOG_TRACE("Sample~Index Match : %s ", sample.GetInfo().c_str());
+      LOG_INFO("Sample~Index Match : %s ", sample.GetInfo().c_str());
       current_index_utility = entry.second;
       break;
     }
@@ -339,7 +339,7 @@ void IndexTuner::DropIndexes(storage::DataTable *table) {
 
     // Check if index utility below threshold and drop if needed
     if(average_index_utility < index_utility_threshold) {
-      LOG_TRACE("Dropping index : %s", index_metadata->GetInfo().c_str());
+      LOG_INFO("Dropping index : %s", index_metadata->GetInfo().c_str());
       table->DropIndexWithOid(index_oid);
 
       // Update index count
@@ -389,14 +389,14 @@ void AddIndexes(storage::DataTable *table,
     // Did we find suggested index ?
     if(suggested_index_found == false) {
 
-      LOG_TRACE("Did not find suggested index.");
+      LOG_INFO("Did not find suggested index.");
 
       // Add adhoc index with given utility
       AddIndex(table, suggested_index_set);
       constructed_index_itr++;
     }
     else {
-      LOG_TRACE("Found suggested index.");
+      LOG_INFO("Found suggested index.");
     }
 
   }
@@ -423,8 +423,8 @@ void UpdateIndexUtility(storage::DataTable* table,
 
     auto average_index_utility = index_metadata->GetUtility();
 
-    LOG_TRACE("Average index utility %5.2lf", average_index_utility);
-    LOG_TRACE("Current index utility %5.2lf", current_index_utility);
+    LOG_INFO("Average index utility %5.2lf", average_index_utility);
+    LOG_INFO("Current index utility %5.2lf", current_index_utility);
 
     // alpha (weight for old samples)
     double alpha = 0.2;
@@ -435,7 +435,7 @@ void UpdateIndexUtility(storage::DataTable* table,
 
     index_metadata->SetUtility(updated_average_index_utility);
 
-    LOG_TRACE("Updated index utility %5.2lf :: %s",
+    LOG_INFO("Updated index utility %5.2lf :: %s",
               updated_average_index_utility,
               index_metadata->GetInfo().c_str());
   }

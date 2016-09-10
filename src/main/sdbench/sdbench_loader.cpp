@@ -114,9 +114,13 @@ void CreateAndLoadTable(LayoutType layout_type) {
   // Initialize settings
   peloton_layout_mode = layout_type;
 
+  LOG_INFO("Creating SDBENCHTABLE");
+  
   CreateTable();
 
   LoadTable();
+
+  LOG_INFO("SDBENCHTABLE created and loaded");
 }
 
 void DropIndexes() {
