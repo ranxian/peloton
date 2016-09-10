@@ -447,6 +447,7 @@ void PrintIndexInformation(storage::DataTable* table) {
 
   oid_t index_count = table->GetIndexCount();
   auto table_tilegroup_count = table->GetTileGroupCount();
+  LOG_INFO("Index count : %u", index_count);
 
   for(oid_t index_itr = 0; index_itr < index_count; index_itr++){
 
