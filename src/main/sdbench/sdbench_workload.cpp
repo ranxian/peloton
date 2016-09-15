@@ -79,6 +79,10 @@ namespace peloton {
 namespace benchmark {
 namespace sdbench {
 
+// Function definitions
+std::shared_ptr<index::Index> PickIndex(storage::DataTable* table,
+                                        std::vector<oid_t> query_attrs);
+
 // Tuple id counter
 oid_t sdbench_tuple_counter = -1000000;
 
@@ -130,6 +134,11 @@ expression::AbstractExpression *CreateSimpleScanPredicate(oid_t key_attr,
   return predicate;
 }
 
+/**
+ * @brief Create the scan predicate given a set of attributes. The predicate
+ * will be attr >= LOWER_BOUND AND attr < UPPER_BOUND.
+ * LOWER_BOUND and UPPER_BOUND are determined by the selectivity config.
+ */
 expression::AbstractExpression *CreateScanPredicate(std::vector<oid_t> key_attrs) {
 
   const int tuple_start_offset = GetLowerBound();
@@ -193,7 +202,58 @@ void CreateIndexScanPredicate(std::vector<oid_t> key_attrs,
     values.push_back(ValueFactory::GetIntegerValue(tuple_end_offset));
 
   }
+}
 
+/**
+ * @brief Create a hybrid scan executor based on selected key columns.
+ * @param tuple_key_attrs The columns which the seq scan predicate is on.
+ * @param index_key_attrs ???
+ * @param column_ids Column ids to added to the result tile after scan.
+ * @return A hybrid scan executor based on the key columns.
+ */
+std::shared_ptr<planner::HybridScanPlan> CreateHybridScanPlan(
+  const std::vector<oid_t>& tuple_key_attrs,
+  const std::vector<oid_t>& index_key_attrs,
+  const std::vector<oid_t>& column_ids) {
+  // Create and set up seq scan executor
+  auto predicate = CreateScanPredicate(tuple_key_attrs);
+
+  planner::IndexScanPlan::IndexScanDesc index_scan_desc;
+
+  std::vector<oid_t> key_column_ids;
+  std::vector<ExpressionType> expr_types;
+  std::vector<Value> values;
+  std::vector<expression::AbstractExpression *> runtime_keys;
+
+  // Create index scan predicate
+  CreateIndexScanPredicate(index_key_attrs, key_column_ids, expr_types, values);
+
+  // Determine hybrid scan type
+  auto hybrid_scan_type = HYBRID_SCAN_TYPE_SEQUENTIAL;
+
+  // Pick index
+  auto index = PickIndex(sdbench_table.get(), tuple_key_attrs);
+
+  if (index != nullptr) {
+    index_scan_desc = planner::IndexScanPlan::IndexScanDesc(index,
+                                                            key_column_ids,
+                                                            expr_types,
+                                                            values,
+                                                            runtime_keys);
+
+    hybrid_scan_type = HYBRID_SCAN_TYPE_HYBRID;
+  }
+
+  LOG_INFO("Hybrid scan type : %d", hybrid_scan_type);
+
+  std::shared_ptr<planner::HybridScanPlan> hybrid_scan_node(new planner::HybridScanPlan(
+                                           sdbench_table.get(),
+                                           predicate,
+                                           column_ids,
+                                           index_scan_desc,
+                                           hybrid_scan_type));
+
+  return hybrid_scan_node;
 }
 
 std::ofstream out("outputfile.summary");
@@ -235,7 +295,7 @@ UNUSED_ATTRIBUTE static void WriteOutput(double duration) {
 
 static void ExecuteTest(std::vector<executor::AbstractExecutor *> &executors,
                         brain::SampleType sample_type,
-                        std::vector<double> index_columns_accessed,
+                        std::vector<std::vector<double>> index_columns_accessed,
                         double selectivity) {
   Timer<> timer;
 
@@ -278,13 +338,15 @@ static void ExecuteTest(std::vector<executor::AbstractExecutor *> &executors,
     WriteOutput(duration);
 
     // Construct sample
-    brain::Sample index_sample(index_columns_accessed,
-                               duration,
-                               sample_type,
-                               selectivity);
+    for (auto &index_columns : index_columns_accessed) {
+      brain::Sample index_sample(index_columns,
+                                 duration / index_columns_accessed.size(),
+                                 sample_type,
+                                 selectivity);
 
-    // Record sample
-    sdbench_table->RecordIndexSample(index_sample);
+      // Record sample
+      sdbench_table->RecordIndexSample(index_sample);
+    }
   }
 
 }
@@ -309,7 +371,7 @@ std::vector<double> GetColumnsAccessed(const std::vector<oid_t> &column_ids) {
 }
 
 std::shared_ptr<index::Index> PickIndex(storage::DataTable* table,
-                                        std::vector<oid_t> query_attrs){
+                                        std::vector<oid_t> query_attrs) {
 
   // Construct set
   std::set<oid_t> query_attrs_set(query_attrs.begin(), query_attrs.end());
@@ -431,9 +493,6 @@ void RunQuery(const std::vector<oid_t>& tuple_key_attrs,
   // SEQ SCAN + PREDICATE
   /////////////////////////////////////////////////////////
 
-  std::unique_ptr<executor::ExecutorContext> context(
-      new executor::ExecutorContext(txn));
-
   // Column ids to be added to logical tile after scan.
   // We need all columns because projection can require any column
   std::vector<oid_t> column_ids;
@@ -444,46 +503,11 @@ void RunQuery(const std::vector<oid_t>& tuple_key_attrs,
     column_ids.push_back(sdbench_column_ids[col_itr]);
   }
 
-  // Create and set up seq scan executor
-  auto predicate = CreateScanPredicate(tuple_key_attrs);
+  std::unique_ptr<executor::ExecutorContext> context(
+      new executor::ExecutorContext(txn));
 
-  planner::IndexScanPlan::IndexScanDesc index_scan_desc;
-
-  std::vector<oid_t> key_column_ids;
-  std::vector<ExpressionType> expr_types;
-  std::vector<Value> values;
-  std::vector<expression::AbstractExpression *> runtime_keys;
-  oid_t col_itr = 0;
-
-  // Create index scan predicate
-  CreateIndexScanPredicate(index_key_attrs, key_column_ids, expr_types, values);
-
-  // Determine hybrid scan type
-  auto hybrid_scan_type = HYBRID_SCAN_TYPE_SEQUENTIAL;
-
-  // Pick index
-  auto index = PickIndex(sdbench_table.get(), tuple_key_attrs);
-
-  if (index != nullptr) {
-    index_scan_desc = planner::IndexScanPlan::IndexScanDesc(index,
-                                                            key_column_ids,
-                                                            expr_types,
-                                                            values,
-                                                            runtime_keys);
-
-    hybrid_scan_type = HYBRID_SCAN_TYPE_HYBRID;
-  }
-
-  LOG_INFO("Hybrid scan type : %d", hybrid_scan_type);
-
-  planner::HybridScanPlan hybrid_scan_node(sdbench_table.get(),
-                                           predicate,
-                                           column_ids,
-                                           index_scan_desc,
-                                           hybrid_scan_type);
-
-  executor::HybridScanExecutor hybrid_scan_executor(&hybrid_scan_node,
-                                                    context.get());
+  auto hybrid_scan_node = CreateHybridScanPlan(tuple_key_attrs, index_key_attrs, column_ids);
+  executor::HybridScanExecutor hybrid_scan_executor(hybrid_scan_node.get(), context.get());
 
   /////////////////////////////////////////////////////////
   // AGGREGATION
@@ -501,7 +525,7 @@ void RunQuery(const std::vector<oid_t>& tuple_key_attrs,
 
   // 2) Set up project info
   DirectMapList direct_map_list;
-  col_itr = 0;
+  oid_t col_itr = 0;
   oid_t tuple_idx = 1;  // tuple2
   for (col_itr = 0; col_itr < column_count; col_itr++) {
     direct_map_list.push_back({col_itr, {tuple_idx, col_itr}});
@@ -590,7 +614,7 @@ void RunQuery(const std::vector<oid_t>& tuple_key_attrs,
 
   ExecuteTest(executors,
               brain::SAMPLE_TYPE_ACCESS,
-              index_columns_accessed,
+              {index_columns_accessed},
               selectivity);
 
   txn_manager.CommitTransaction();
@@ -653,8 +677,127 @@ void RunInsertTest() {
 
   ExecuteTest(executors,
               brain::SAMPLE_TYPE_UPDATE,
-              index_columns_accessed,
+              {index_columns_accessed},
               selectivity);
+
+  txn_manager.CommitTransaction();
+}
+
+void RunJoinTest(const std::vector<oid_t> &left_table_tuple_key_attrs,
+                 const std::vector<oid_t> &left_table_index_key_attrs,
+                 const std::vector<oid_t> &right_table_tuple_key_attrs,
+                 const std::vector<oid_t> &right_table_index_key_attrs,
+                 const oid_t left_table_join_column,
+                 const oid_t right_table_join_column) {
+  const bool is_inlined = true;
+  auto &txn_manager = concurrency::TransactionManagerFactory::GetInstance();
+
+  auto txn = txn_manager.BeginTransaction();
+
+  /////////////////////////////////////////////////////////
+  // SEQ SCAN + PREDICATE
+  /////////////////////////////////////////////////////////
+
+  std::unique_ptr<executor::ExecutorContext> context(
+      new executor::ExecutorContext(txn));
+
+  // Column ids to be added to logical tile after scan.
+  // Left half of the columns are considered left table, right half of the
+  // columns are considered right table.
+  std::vector<oid_t> column_ids;
+  oid_t column_count = state.column_count;
+
+  for (oid_t col_itr = 0; col_itr < column_count; col_itr++) {
+    column_ids.push_back(sdbench_column_ids[col_itr]);
+  }
+
+  // Create and set up seq scan executor
+  auto left_table_scan_node = CreateHybridScanPlan(left_table_tuple_key_attrs, left_table_index_key_attrs, column_ids);
+  auto right_table_scan_node = CreateHybridScanPlan(right_table_tuple_key_attrs, right_table_index_key_attrs, column_ids);
+
+  executor::HybridScanExecutor left_table_hybrid_scan_executor(left_table_scan_node.get(), context.get());
+  executor::HybridScanExecutor right_table_hybrid_scan_executor(right_table_scan_node.get(), context.get());
+
+
+  /////////////////////////////////////////////////////////
+  // JOIN EXECUTOR
+  /////////////////////////////////////////////////////////
+
+  auto join_type = JOIN_TYPE_INNER;
+
+  // Create join predicate
+  // TODO: Generate predicate based on projectivity
+  std::unique_ptr<expression::TupleValueExpression> left_table_attr(
+    new expression::TupleValueExpression(VALUE_TYPE_INTEGER, 0, left_table_join_column));
+  std::unique_ptr<expression::TupleValueExpression> right_table_attr(
+    new expression::TupleValueExpression(VALUE_TYPE_INTEGER, 1, right_table_join_column));
+
+  std::unique_ptr<expression::ComparisonExpression<expression::CmpLt>> join_predicate(
+    new expression::ComparisonExpression<expression::CmpLt>(
+        EXPRESSION_TYPE_COMPARE_EQUAL, left_table_attr.get(), right_table_attr.get()));
+
+  std::unique_ptr<const planner::ProjectInfo> project_info(nullptr);
+  std::shared_ptr<const catalog::Schema> schema(nullptr);
+
+  planner::NestedLoopJoinPlan nested_loop_join_node(
+      join_type, std::move(join_predicate), std::move(project_info), schema);
+
+  // Run the nested loop join executor
+  executor::NestedLoopJoinExecutor nested_loop_join_executor(
+      &nested_loop_join_node, nullptr);
+
+  // Construct the executor tree
+  nested_loop_join_executor.AddChild(&left_table_hybrid_scan_executor);
+  nested_loop_join_executor.AddChild(&right_table_hybrid_scan_executor);
+
+  /////////////////////////////////////////////////////////
+  // MATERIALIZE
+  /////////////////////////////////////////////////////////
+
+  // Create and set up materialization executor
+  std::vector<catalog::Column> output_columns;
+  std::unordered_map<oid_t, oid_t> old_to_new_cols;
+  oid_t join_column_count = column_count * 2;
+  for (oid_t col_itr = 0; col_itr < join_column_count; col_itr++) {
+    auto column =
+        catalog::Column(VALUE_TYPE_INTEGER, GetTypeSize(VALUE_TYPE_INTEGER),
+                        "" + std::to_string(col_itr), is_inlined);
+    output_columns.push_back(column);
+
+    old_to_new_cols[col_itr] = col_itr;
+  }
+
+  std::shared_ptr<const catalog::Schema> output_schema(
+      new catalog::Schema(output_columns));
+  bool physify_flag = true;  // is going to create a physical tile
+  planner::MaterializationPlan mat_node(old_to_new_cols,
+                                        output_schema, physify_flag);
+
+  executor::MaterializationExecutor mat_executor(&mat_node, nullptr);
+  mat_executor.AddChild(&nested_loop_join_executor);
+
+  /////////////////////////////////////////////////////////
+  // EXECUTE
+  /////////////////////////////////////////////////////////
+
+  std::vector<executor::AbstractExecutor *> executors;
+  executors.push_back(&mat_executor);
+
+  /////////////////////////////////////////////////////////
+  // COLLECT STATS
+  /////////////////////////////////////////////////////////
+
+  std::vector<double> left_table_index_columns_accessed(left_table_tuple_key_attrs.begin(),
+    left_table_tuple_key_attrs.end());
+  std::vector<double> right_table_index_columns_accessed(right_table_tuple_key_attrs.begin(),
+    right_table_tuple_key_attrs.end());
+
+  auto selectivity = state.selectivity;
+
+  ExecuteTest(executors,
+    brain::SAMPLE_TYPE_ACCESS,
+    {left_table_index_columns_accessed, right_table_index_columns_accessed},
+    selectivity);
 
   txn_manager.CommitTransaction();
 }

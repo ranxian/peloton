@@ -29,8 +29,8 @@ enum OperatorType {
   OPERATOR_TYPE_INVALID = 0, /* invalid */
 
   OPERATOR_TYPE_DIRECT = 1,
-  OPERATOR_TYPE_INSERT = 2
-
+  OPERATOR_TYPE_INSERT = 2,
+  OPERATOR_TYPE_JOIN   = 3,
 };
 
 enum ExperimentType {

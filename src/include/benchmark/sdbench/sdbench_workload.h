@@ -28,6 +28,8 @@ void RunQuery(const std::vector<oid_t>& tuple_key_attrs,
 
 void RunInsertTest();
 
+void RunJoinTest();
+
 void RunAdaptExperiment();
 
 }  // namespace sdbench
