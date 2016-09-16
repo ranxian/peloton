@@ -76,6 +76,10 @@ void RunBenchmark() {
         RunAdaptExperiment();
         break;
 
+      case EXPERIMENT_TYPE_QUERY:
+        RunQueryExperiment();
+        break;
+
       default:
         LOG_ERROR("Unsupported experiment_type : %d", state.experiment_type);
         break;

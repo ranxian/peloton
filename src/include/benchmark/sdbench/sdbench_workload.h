@@ -37,6 +37,8 @@ void RunJoinTest(const std::vector<oid_t> &left_table_tuple_key_attrs,
 
 void RunAdaptExperiment();
 
+void RunQueryExperiment();
+
 }  // namespace sdbench
 }  // namespace benchmark
 }  // namespace peloton

@@ -448,6 +448,27 @@ void RunModerateQuery() {
   RunQuery(tuple_key_attrs, index_key_attrs);
 }
 
+/**
+ * @brief Run complex query
+ * @details 60% join test, 30% moderate query, 10% simple query
+ */
+void RunComplexQeury() {
+  LOG_INFO("Complex Query");
+
+  auto rand_sample = rand() % 10;
+
+  // Assume there are 20 columns, 10 for the left table, 10 for the right table
+  if (rand_sample <= 2) {
+    RunJoinTest({3, 4}, {0, 1}, {10, 11}, {0, 1}, 5, 12);
+  } else if (rand_sample <= 5) {
+    RunJoinTest({3, 6}, {0, 1}, {10, 14}, {0, 1}, 4, 13);
+  } else if (rand_sample <= 8) {
+    RunQuery({3, 4}, {0, 1});
+  } else {
+    RunQuery({2}, {0});
+  }
+}
+
 void RunQuery(const std::vector<oid_t> &tuple_key_attrs,
               const std::vector<oid_t> &index_key_attrs) {
   const bool is_inlined = true;
@@ -775,11 +796,11 @@ static void RunAdaptTest() {
 
   total_duration = 0;
 
-  double rand_sample = (double)rand() / RAND_MAX;
-
   state.operator_type = OPERATOR_TYPE_DIRECT;
 
   for (oid_t repeat_itr = 0; repeat_itr < repeat_count; repeat_itr++) {
+    double rand_sample = (double)rand() / RAND_MAX;
+
     if (rand_sample < write_ratio) {
       // Do insert
       LOG_INFO("Do insert");
@@ -788,6 +809,27 @@ static void RunAdaptTest() {
       // Do read
       LOG_INFO("Do read");
       RunModerateQuery();
+    }
+  }
+
+  LOG_INFO("Total Duration : %.2lf", total_duration);
+}
+
+static void RunQueryTest() {
+  double repeat_count = state.total_ops / state.phase_length;
+
+  total_duration = 0;
+
+  for (oid_t repeat_itr = 0; repeat_itr < repeat_count; repeat_itr++) {
+    double rand_sample = (double)rand() / RAND_MAX;
+
+    // Uniform distribution of simple, moderate and complex query
+    if (rand_sample < 0.33) {
+      RunSimpleQuery();
+    } else if (rand_sample < 0.66) {
+      RunModerateQuery();
+    } else {
+      RunComplexQeury();
     }
   }
 
@@ -840,6 +882,50 @@ void RunAdaptExperiment() {
   }
 
   // Reset
+  state.adapt_layout = false;
+  query_itr = 0;
+
+  out.close();
+}
+
+void RunQueryExperiment() {
+  LOG_INFO("Run query experiment");
+  auto &index_tuner = brain::IndexTuner::GetInstance();
+  std::thread index_builder;
+
+  state.projectivity = 1.0;
+  state.selectivity = 0.001;
+  state.column_count = 10;
+  state.layout_mode = LAYOUT_TYPE_ROW;
+  state.adapt_layout = true;
+
+  state.total_ops = 3000;
+  state.phase_length = 300;
+
+  peloton_layout_mode = state.layout_mode;
+
+  // Generate sequence
+  GenerateSequence(state.column_count);
+
+  CreateAndLoadTable((LayoutType)peloton_layout_mode);
+
+  LOG_INFO("Phase length: %lu", state.phase_length);
+
+  // Reset query counter
+  query_itr = 0;
+
+  // Start index tuner
+  index_tuner.Start();
+  index_tuner.AddTable(sdbench_table.get());
+
+  // Run query test
+  RunQueryTest();
+
+  index_tuner.Stop();
+  index_tuner.ClearTables();
+
+  DropIndexes();
+
   state.adapt_layout = false;
   query_itr = 0;
 

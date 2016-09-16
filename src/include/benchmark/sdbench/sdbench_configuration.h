@@ -36,8 +36,9 @@ enum OperatorType {
 enum ExperimentType {
   EXPERIMENT_TYPE_INVALID = 0,
 
-  EXPERIMENT_TYPE_ADAPT = 1
+  EXPERIMENT_TYPE_ADAPT = 1,
 
+  EXPERIMENT_TYPE_QUERY = 2,
 };
 
 extern int orig_scale_factor;
