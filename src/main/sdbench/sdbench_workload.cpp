@@ -194,7 +194,9 @@ void CreateIndexScanPredicate(std::vector<oid_t> key_attrs,
 /**
  * @brief Create a hybrid scan executor based on selected key columns.
  * @param tuple_key_attrs The columns which the seq scan predicate is on.
- * @param index_key_attrs ???
+ * @param index_key_attrs The columns in the *index key tuple* which the index
+ * scan predicate is on. It should match the corresponding columns in
+ * \b tuple_key_columns.
  * @param column_ids Column ids to added to the result tile after scan.
  * @return A hybrid scan executor based on the key columns.
  */
@@ -689,7 +691,6 @@ void RunJoinTest(const std::vector<oid_t> &left_table_tuple_key_attrs,
   auto join_type = JOIN_TYPE_INNER;
 
   // Create join predicate
-  // TODO: Generate predicate based on projectivity
   std::unique_ptr<expression::TupleValueExpression> left_table_attr(
       new expression::TupleValueExpression(VALUE_TYPE_INTEGER, 0,
                                            left_table_join_column));
@@ -699,7 +700,7 @@ void RunJoinTest(const std::vector<oid_t> &left_table_tuple_key_attrs,
 
   std::unique_ptr<expression::ComparisonExpression<expression::CmpLt>>
       join_predicate(new expression::ComparisonExpression<expression::CmpLt>(
-          EXPRESSION_TYPE_COMPARE_EQUAL, left_table_attr.get(),
+          EXPRESSION_TYPE_COMPARE_LESSTHAN, left_table_attr.get(),
           right_table_attr.get()));
 
   std::unique_ptr<const planner::ProjectInfo> project_info(nullptr);

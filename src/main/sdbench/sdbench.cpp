@@ -10,7 +10,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-
 #include <iostream>
 #include <fstream>
 
@@ -51,6 +50,19 @@ void RunBenchmark() {
         RunInsertTest();
         break;
 
+      case OPERATOR_TYPE_JOIN: {
+        std::vector<oid_t> left_table_tuple_key_attrs = {1, 2};
+        std::vector<oid_t> left_table_index_key_attrs = {0, 1};
+        std::vector<oid_t> right_table_tuple_key_attrs = {4, 5};
+        std::vector<oid_t> right_table_index_key_attrs = {0, 1};
+        oid_t left_table_join_column = 3;
+        oid_t right_table_join_column = 6;
+        RunJoinTest(left_table_tuple_key_attrs, left_table_index_key_attrs,
+                    right_table_tuple_key_attrs, right_table_index_key_attrs,
+                    left_table_join_column, right_table_join_column);
+        break;
+      }
+
       default:
         LOG_ERROR("Unsupported test type : %d", state.operator_type);
         break;
@@ -60,7 +72,6 @@ void RunBenchmark() {
   // Experiment
   else {
     switch (state.experiment_type) {
-
       case EXPERIMENT_TYPE_ADAPT:
         RunAdaptExperiment();
         break;

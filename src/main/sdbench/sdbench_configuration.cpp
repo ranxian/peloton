@@ -82,6 +82,9 @@ static void ValidateOperator(const configuration &state) {
       case OPERATOR_TYPE_INSERT:
         LOG_INFO("%s : INSERT", "operator_type ");
         break;
+      case OPERATOR_TYPE_JOIN:
+        LOG_INFO("%s : JOIN", "operator_type ");
+        break;
       default:
         break;
     }
