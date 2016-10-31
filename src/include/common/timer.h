@@ -10,11 +10,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-
 #pragma once
 
-#include <iostream>
 #include <chrono>
+#include <iostream>
 
 //===--------------------------------------------------------------------===//
 // Timer
@@ -34,9 +33,10 @@ class Timer {
   void Stop() {
     end = clock_::now();
 
-    double duration = std::chrono::duration_cast<
-                          std::chrono::duration<double, ResolutionRatio> >(
-                          end - begin).count();
+    double duration =
+        std::chrono::duration_cast<
+            std::chrono::duration<double, ResolutionRatio> >(end - begin)
+            .count();
 
     elapsed += duration;
   }
@@ -44,7 +44,7 @@ class Timer {
   void Reset() { elapsed = 0; }
 
   // Get Elapsed duration
-  double GetDuration() const { return elapsed; }
+  double GetDuration() const { return elapsed * 1000000; }
 
  private:
   // Start

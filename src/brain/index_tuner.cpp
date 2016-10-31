@@ -99,6 +99,7 @@ void IndexTuner::BuildIndex(storage::DataTable* table,
 
   while (index_tile_group_offset < table_tile_group_count &&
          (tile_groups_indexed < max_tile_groups_indexed)) {
+    LOG_INFO("Build index ");
     std::unique_ptr<storage::Tuple> tuple_ptr(
         new storage::Tuple(table_schema, true));
 
@@ -453,7 +454,7 @@ void IndexTuner::Analyze(storage::DataTable* table) {
   UpdateIndexUtility(table, sample_frequency_entry_list);
 
   // Display index information
-  //PrintIndexInformation(table);
+  PrintIndexInformation(table);
 }
 
 void IndexTuner::IndexTuneHelper(storage::DataTable* table) {

@@ -12,6 +12,7 @@
 
 #include "executor/materialization_executor.h"
 
+#include <include/common/timer.h>
 #include <memory>
 #include <utility>
 

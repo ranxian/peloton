@@ -10,28 +10,26 @@
 //
 //===----------------------------------------------------------------------===//
 
-
 #include <iostream>
 
 #include "catalog/schema.h"
-#include "common/value.h"
 #include "common/macros.h"
-#include "storage/tile_group.h"
-#include "storage/tile.h"
-#include "storage/data_table.h"
+#include "common/value.h"
 #include "common/value_factory.h"
 #include "executor/logical_tile.h"
+#include "storage/data_table.h"
+#include "storage/tile.h"
+#include "storage/tile_group.h"
 
 namespace peloton {
 namespace executor {
 
 #define SCHEMA_PREALLOCATION_SIZE 20
 
-LogicalTile::LogicalTile(){
+LogicalTile::LogicalTile() {
   // Preallocate schema
   schema_.reserve(SCHEMA_PREALLOCATION_SIZE);
 }
-
 
 /**
  * @brief Get the schema of the tile.
@@ -391,15 +389,14 @@ void LogicalTile::AddColumn(const std::shared_ptr<storage::Tile> &base_tile,
 void LogicalTile::AddColumns(
     const std::shared_ptr<storage::TileGroup> &tile_group,
     const std::vector<oid_t> &column_ids) {
-
-  auto& column_map = tile_group->GetColumnMap();
+  auto &column_map = tile_group->GetColumnMap();
 
   const int position_list_idx = 0;
   oid_t base_tile_offset, tile_column_offset;
   ColumnInfo cp;
 
+  std::ostringstream ss;
   for (oid_t origin_column_id : column_ids) {
-
     // Get the entry in the column map
     auto entry = column_map.at(origin_column_id);
     base_tile_offset = entry.first;
@@ -414,7 +411,6 @@ void LogicalTile::AddColumns(
     cp.position_list_idx = position_list_idx;
     schema_.push_back(cp);
   }
-
 }
 
 /**
@@ -440,24 +436,27 @@ void LogicalTile::ProjectColumns(const std::vector<oid_t> &original_column_ids,
 }
 
 std::vector<std::vector<std::string>> LogicalTile::GetAllValuesAsStrings() {
-	std::vector<std::vector<std::string>> string_tile;
-	for (oid_t tuple_itr = 0; tuple_itr < total_tuples_; tuple_itr++) {
-		std::vector<std::string> row;
-	    if (visible_rows_[tuple_itr] == false) continue;
-	    for (oid_t column_itr = 0; column_itr < schema_.size(); column_itr++) {
-	      const LogicalTile::ColumnInfo &cp = schema_[column_itr];
-	      oid_t base_tuple_id = position_lists_[cp.position_list_idx][tuple_itr];
-	      // get the value from the base physical tile
-	      if (base_tuple_id == NULL_OID) {
-	        row.push_back(ValueFactory::GetNullValueByType(
-	                  cp.base_tile->GetSchema()->GetType(cp.origin_column_id)).ToString());
-	      } else {
-	        row.push_back(cp.base_tile->GetValue(base_tuple_id, cp.origin_column_id).ToString());
-	      }
-	    }
-	    string_tile.push_back(row);
-	}
-	return string_tile;
+  std::vector<std::vector<std::string>> string_tile;
+  for (oid_t tuple_itr = 0; tuple_itr < total_tuples_; tuple_itr++) {
+    std::vector<std::string> row;
+    if (visible_rows_[tuple_itr] == false) continue;
+    for (oid_t column_itr = 0; column_itr < schema_.size(); column_itr++) {
+      const LogicalTile::ColumnInfo &cp = schema_[column_itr];
+      oid_t base_tuple_id = position_lists_[cp.position_list_idx][tuple_itr];
+      // get the value from the base physical tile
+      if (base_tuple_id == NULL_OID) {
+        row.push_back(
+            ValueFactory::GetNullValueByType(
+                cp.base_tile->GetSchema()->GetType(cp.origin_column_id))
+                .ToString());
+      } else {
+        row.push_back(cp.base_tile->GetValue(base_tuple_id, cp.origin_column_id)
+                          .ToString());
+      }
+    }
+    string_tile.push_back(row);
+  }
+  return string_tile;
 }
 
 const std::string LogicalTile::GetInfo() const {
@@ -510,8 +509,8 @@ const std::string LogicalTile::GetInfo() const {
  */
 void LogicalTile::GenerateTileToColMap(
     const std::unordered_map<oid_t, oid_t> &old_to_new_cols,
-    std::unordered_map<storage::Tile *, std::vector<oid_t>> &
-        cols_in_physical_tile) {
+    std::unordered_map<storage::Tile *, std::vector<oid_t>>
+        &cols_in_physical_tile) {
   for (const auto &kv : old_to_new_cols) {
     oid_t col = kv.first;
 
@@ -536,7 +535,8 @@ void LogicalTile::MaterializeByTiles(
     storage::Tile *dest_tile) {
   bool row_wise_materialization = true;
 
-  if (peloton_layout_mode == LAYOUT_TYPE_COLUMN) row_wise_materialization = false;
+  if (peloton_layout_mode == LAYOUT_TYPE_COLUMN)
+    row_wise_materialization = false;
 
   // TODO: Make this a parameter
   auto dest_tile_column_count = dest_tile->GetColumnCount();

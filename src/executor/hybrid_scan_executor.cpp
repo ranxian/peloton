@@ -10,41 +10,40 @@
 //
 //===----------------------------------------------------------------------===//
 
-
+#include <cassert>
+#include <chrono>
+#include <ctime>
+#include <iostream>
 #include <memory>
+#include <numeric>
+#include <string>
+#include <thread>
+#include <unordered_map>
 #include <utility>
 #include <vector>
-#include <string>
-#include <unordered_map>
-#include <chrono>
-#include <iostream>
-#include <ctime>
-#include <cassert>
-#include <thread>
-#include <numeric>
 
+#include "common/logger.h"
 #include "common/timer.h"
 #include "common/types.h"
+#include "concurrency/transaction_manager_factory.h"
+#include "executor/executor_context.h"
+#include "executor/hybrid_scan_executor.h"
 #include "executor/logical_tile.h"
 #include "executor/logical_tile_factory.h"
-#include "executor/executor_context.h"
 #include "expression/abstract_expression.h"
 #include "expression/container_tuple.h"
 #include "planner/hybrid_scan_plan.h"
-#include "executor/hybrid_scan_executor.h"
 #include "storage/data_table.h"
-#include "storage/tile_group_header.h"
 #include "storage/tile.h"
-#include "concurrency/transaction_manager_factory.h"
-#include "common/logger.h"
+#include "storage/tile_group_header.h"
 
 namespace peloton {
 namespace executor {
 
 HybridScanExecutor::HybridScanExecutor(const planner::AbstractPlan *node,
                                        ExecutorContext *executor_context)
-: AbstractScanExecutor(node, executor_context),
-  indexed_tile_group_offset_(START_OID) {}
+    : AbstractScanExecutor(node, executor_context),
+      indexed_tile_group_offset_(START_OID) {}
 
 bool HybridScanExecutor::DInit() {
   auto status = AbstractScanExecutor::DInit();
@@ -215,17 +214,16 @@ bool HybridScanExecutor::SeqScanUtil() {
         // If the tuple is visible, then perform predicate evaluation.
         if (predicate_ == nullptr) {
           position_list.push_back(tuple_id);
-        }
-        else {
+        } else {
           expression::ContainerTuple<storage::TileGroup> tuple(tile_group.get(),
                                                                tuple_id);
-          auto eval = predicate_->Evaluate(&tuple, nullptr, executor_context_).IsTrue();
+          auto eval =
+              predicate_->Evaluate(&tuple, nullptr, executor_context_).IsTrue();
           if (eval == true) {
             position_list.push_back(tuple_id);
           }
         }
-      }
-      else {
+      } else {
         expression::ContainerTuple<storage::TileGroup> tuple(tile_group.get(),
                                                              tuple_id);
         auto eval =
@@ -268,8 +266,7 @@ bool HybridScanExecutor::IndexScanUtil() {
     if (result_[result_itr_]->GetTupleCount() == 0) {
       result_itr_++;
       continue;
-    }
-    else {
+    } else {
       SetOutput(result_[result_itr_]);
       result_itr_++;
       return true;
@@ -280,7 +277,6 @@ bool HybridScanExecutor::IndexScanUtil() {
 }
 
 bool HybridScanExecutor::DExecute() {
-
   // SEQUENTIAL SCAN
   if (type_ == HYBRID_SCAN_TYPE_SEQUENTIAL) {
     LOG_TRACE("Sequential Scan");
@@ -297,8 +293,7 @@ bool HybridScanExecutor::DExecute() {
         if (status == false) {
           return false;
         }
-      }
-      else {
+      } else {
         return false;
       }
     }
@@ -322,6 +317,7 @@ bool HybridScanExecutor::DExecute() {
     if (IndexScanUtil() == true) {
       return true;
     }
+
     // Scan seq
     return SeqScanUtil();
   }
@@ -329,7 +325,6 @@ bool HybridScanExecutor::DExecute() {
   else {
     throw Exception("Invalid hybrid scan type : " + std::to_string(type_));
   }
-
 }
 
 bool HybridScanExecutor::ExecPrimaryIndexLookup() {
@@ -349,11 +344,8 @@ bool HybridScanExecutor::ExecPrimaryIndexLookup() {
     index_->ScanAllKeys(tuple_locations);
   } else {
     LOG_TRACE("Scan");
-    index_->Scan(values_,
-                 key_column_ids_,
-                 expr_type_,
-                 SCAN_DIRECTION_TYPE_FORWARD,
-                 tuple_locations);
+    index_->Scan(values_, key_column_ids_, expr_type_,
+                 SCAN_DIRECTION_TYPE_FORWARD, tuple_locations);
   }
 
   LOG_TRACE("Result tuple count: %lu", tuple_locations.size());
@@ -406,9 +398,9 @@ bool HybridScanExecutor::ExecPrimaryIndexLookup() {
         // check whether older version is garbage.
         if (old_end_cid < max_committed_cid) {
           assert(tile_group_header->GetTransactionId(old_item.offset) ==
-              INITIAL_TXN_ID ||
-              tile_group_header->GetTransactionId(old_item.offset) ==
-                  INVALID_TXN_ID);
+                     INITIAL_TXN_ID ||
+                 tile_group_header->GetTransactionId(old_item.offset) ==
+                     INVALID_TXN_ID);
         }
 
         tile_group = manager.GetTileGroup(tuple_location.block);

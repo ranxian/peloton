@@ -10,7 +10,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-
 #pragma once
 
 #include <unordered_map>
@@ -18,8 +17,8 @@
 
 #include "common/value_factory.h"
 #include "executor/abstract_executor.h"
-#include "planner/aggregate_plan.h"
 #include "expression/container_tuple.h"
+#include "planner/aggregate_plan.h"
 
 //===--------------------------------------------------------------------===//
 // Aggregate
@@ -308,7 +307,8 @@ class HashAggregator : public AbstractAggregator {
 
   // Default equal_to should works well
   typedef std::unordered_map<std::vector<Value>, AggregateList *,
-                             ValueVectorHasher> HashAggregateMapType;
+                             ValueVectorHasher>
+      HashAggregateMapType;
 
   /** @brief Group by key values used */
   std::vector<Value> group_by_key_values;

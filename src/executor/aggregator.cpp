@@ -10,14 +10,14 @@
 //
 //===----------------------------------------------------------------------===//
 
-
 #include <set>
 
+#include "common/logger.h"
+#include "common/timer.h"
+#include "concurrency/transaction_manager_factory.h"
 #include "executor/aggregator.h"
 #include "executor/executor_context.h"
-#include "common/logger.h"
 #include "storage/data_table.h"
-#include "concurrency/transaction_manager_factory.h"
 
 namespace peloton {
 namespace executor {
@@ -359,7 +359,9 @@ PlainAggregator::PlainAggregator(const planner::AggregatePlan *node,
 
   // initialize aggregators
   for (oid_t aggno = 0; aggno < node->GetUniqueAggTerms().size(); aggno++) {
-	  LOG_TRACE("Aggregate term type: %s", ExpressionTypeToString(node->GetUniqueAggTerms()[aggno].aggtype).c_str());
+    LOG_INFO("Aggregate term type: %s",
+             ExpressionTypeToString(node->GetUniqueAggTerms()[aggno].aggtype)
+                 .c_str());
     aggregates[aggno] =
         GetAggInstance(node->GetUniqueAggTerms()[aggno].aggtype);
 
@@ -370,15 +372,19 @@ PlainAggregator::PlainAggregator(const planner::AggregatePlan *node,
 
 bool PlainAggregator::Advance(AbstractTuple *next_tuple) {
   // Update the aggregation calculation
+  Timer<> eval_timer;
   for (oid_t aggno = 0; aggno < node->GetUniqueAggTerms().size(); aggno++) {
     auto predicate = node->GetUniqueAggTerms()[aggno].expression;
     Value value = ValueFactory::GetIntegerValue(1);
     if (predicate) {
+      eval_timer.Start();
       value = node->GetUniqueAggTerms()[aggno].expression->Evaluate(
           next_tuple, nullptr, this->executor_context);
+      eval_timer.Stop();
     }
     aggregates[aggno]->Advance(value);
   }
+  LOG_INFO("Evaluate expression takes %lf", eval_timer.GetDuration());
   return true;
 }
 

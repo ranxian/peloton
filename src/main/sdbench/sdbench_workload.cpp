@@ -876,6 +876,9 @@ static void AggregateQueryHelper(const std::vector<oid_t> &tuple_key_attrs,
   // over which we compute aggregates
   column_count = state.projectivity * state.attribute_count;
   column_ids.resize(column_count);
+  if (state.verbose) {
+    LOG_INFO("Aggregate on: %s", GetOidVectorString(column_ids).c_str());
+  }
 
   // (1-5) Setup plan node
 
@@ -971,10 +974,8 @@ static void AggregateQueryHelper(const std::vector<oid_t> &tuple_key_attrs,
                                              tuple_key_attrs.end());
   auto selectivity = state.selectivity;
 
-  auto tuple_columns_accessed = tuple_key_attrs;
-  for (auto column_id : column_ids) {
-    tuple_columns_accessed.push_back(column_id);
-  }
+  // Only record the access to projected columns
+  auto tuple_columns_accessed = column_ids;
 
   ExecuteTest(executors, brain::SAMPLE_TYPE_ACCESS, {index_columns_accessed},
               {tuple_columns_accessed}, selectivity);

@@ -10,16 +10,16 @@
 //
 //===----------------------------------------------------------------------===//
 
-
+#include <concurrency/transaction_manager_factory.h>
+#include <include/common/timer.h>
 #include <utility>
 #include <vector>
-#include <concurrency/transaction_manager_factory.h>
 
 #include "common/logger.h"
-#include "executor/aggregator.h"
 #include "executor/aggregate_executor.h"
-#include "executor/logical_tile_factory.h"
+#include "executor/aggregator.h"
 #include "executor/executor_context.h"
+#include "executor/logical_tile_factory.h"
 #include "expression/container_tuple.h"
 #include "planner/aggregate_plan.h"
 #include "storage/table_factory.h"
@@ -82,6 +82,12 @@ bool AggregateExecutor::DInit() {
  * @return true on success, false otherwise.
  */
 bool AggregateExecutor::DExecute() {
+  Timer<> timer;
+  timer.Start();
+  Timer<> scan_timer;
+  scan_timer.Start();
+  Timer<> agg_timer;
+  agg_timer.Start();
   // Already performed the aggregation
   if (done) {
     if (result_itr == INVALID_OID || result_itr == result.size()) {
@@ -101,7 +107,12 @@ bool AggregateExecutor::DExecute() {
   std::unique_ptr<AbstractAggregator> aggregator(nullptr);
 
   // Get input tiles and aggregate them
-  while (children_[0]->Execute() == true) {
+  while (true) {
+    scan_timer.Start();
+    bool res = children_[0]->Execute();
+    scan_timer.Stop();
+    if (!res) break;
+
     std::unique_ptr<LogicalTile> tile(children_[0]->GetOutput());
 
     if (nullptr == aggregator.get()) {
@@ -129,12 +140,15 @@ bool AggregateExecutor::DExecute() {
     }
 
     LOG_TRACE("Looping over tile..");
-
+    // tile->PrintPositionLists();
     for (oid_t tuple_id : *tile) {
       std::unique_ptr<expression::ContainerTuple<LogicalTile>> cur_tuple(
           new expression::ContainerTuple<LogicalTile>(tile.get(), tuple_id));
 
-      if (aggregator->Advance(cur_tuple.get()) == false) {
+      agg_timer.Start();
+      bool res = aggregator->Advance(cur_tuple.get());
+      agg_timer.Stop();
+      if (res == false) {
         return false;
       }
     }
@@ -185,10 +199,13 @@ bool AggregateExecutor::DExecute() {
   done = true;
   LOG_TRACE("Result tiles : %lu ", result.size());
 
-
   SetOutput(result[result_itr]);
   result_itr++;
 
+  timer.Stop();
+  LOG_INFO("Scan takes %f", scan_timer.GetDuration());
+  LOG_INFO("Agg takes %f", agg_timer.GetDuration());
+  LOG_INFO("Total takes %f", timer.GetDuration());
   return true;
 }
 
